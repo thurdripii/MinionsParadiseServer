@@ -1,5 +1,4 @@
 
-using System;
 using System.Collections;
 using UnityEngine;
 
@@ -16,9 +15,15 @@ public class MinionsParadiseBootstrapper : MonoBehaviour
 
     private IEnumerator CheckServer()
     {
-        string healthUrl = ServerBaseUrl.TrimEnd('/') + "/health";
+        string baseUrl = ServerBaseUrl.TrimEnd('/');
 
-        using (WWW request = new WWW(healthUrl))
+        yield return StartCoroutine(RequestEndpoint(baseUrl + "/health"));
+        yield return StartCoroutine(RequestEndpoint(baseUrl + "/config"));
+    }
+
+    private IEnumerator RequestEndpoint(string url)
+    {
+        using (WWW request = new WWW(url))
         {
             float startTime = Time.realtimeSinceStartup;
 
@@ -26,7 +31,7 @@ public class MinionsParadiseBootstrapper : MonoBehaviour
             {
                 if (Time.realtimeSinceStartup - startTime > RequestTimeoutSeconds)
                 {
-                    Debug.LogError("[MPB] Server timeout.");
+                    Debug.LogError("[MPB] Timeout: " + url);
                     yield break;
                 }
 
@@ -35,11 +40,12 @@ public class MinionsParadiseBootstrapper : MonoBehaviour
 
             if (!string.IsNullOrEmpty(request.error))
             {
-                Debug.LogError("[MPB] Connection failed: " + request.error);
+                Debug.LogError("[MPB] Request failed: " + request.error);
                 yield break;
             }
 
-            Debug.Log("[MPB] Server response: " + request.text);
+            Debug.Log("[MPB] Response from " + url);
+            Debug.Log(request.text);
         }
     }
 }
