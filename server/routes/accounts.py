@@ -45,4 +45,3 @@ def get_player(player_id):
             "success": False,
             "error": "Database error"
         }), 500
-
