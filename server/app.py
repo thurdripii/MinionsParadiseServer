@@ -1,55 +1,72 @@
 
-import os
 from flask import Flask, jsonify
-from waitress import serve
 
-app = Flask(__name__)
+from server.config import Config
+from server.database import initialize_database
 
-SERVER_NAME = "MinionsParadiseBrazil"
-SERVER_VERSION = os.getenv("MP_SERVER_VERSION", "0.1.0-dev")
-PORT = int(os.getenv("PORT", "8000"))
-
-
-@app.route("/", methods=["GET"])
-def index():
-    return jsonify({
-        "name": SERVER_NAME,
-        "version": SERVER_VERSION,
-        "status": "online",
-        "message": "Welcome to MinionsParadiseBrazil!"
-    })
+from server.routes import (
+    health_bp,
+    accounts_bp,
+    sessions_bp,
+    gamestate_bp
+)
 
 
-@app.route("/health", methods=["GET"])
-def health():
-    return jsonify({
-        "status": "ok",
-        "server": SERVER_NAME,
-        "version": SERVER_VERSION
-    }), 200
+def create_app():
+    app = Flask(__name__)
+
+    app.config["MAX_CONTENT_LENGTH"] = Config.MAX_GAMESTATE_SIZE
+
+    # Initialize database
+    initialize_database()
+
+    # Register API routes
+    app.register_blueprint(health_bp)
+    app.register_blueprint(accounts_bp)
+    app.register_blueprint(sessions_bp)
+    app.register_blueprint(gamestate_bp)
+
+    @app.route("/", methods=["GET"])
+    def index():
+        return jsonify({
+            "name": Config.PROJECT_NAME,
+            "version": Config.SERVER_VERSION,
+            "status": "online",
+            "message": "Welcome to MinionsParadiseBrazil!"
+        })
+
+    @app.route("/config", methods=["GET"])
+    def server_config():
+        return jsonify({
+            "project": Config.PROJECT_NAME,
+            "version": Config.SERVER_VERSION,
+            "protocol_status": "experimental",
+            "features": {
+                "accounts": True,
+                "sessions": True,
+                "gamestate": True
+            }
+        })
+
+    return app
 
 
-@app.route("/config", methods=["GET"])
-def config():
-    return jsonify({
-        "project": SERVER_NAME,
-        "version": SERVER_VERSION,
-        "protocol_status": "experimental",
-        "features": {
-            "diagnostics": True,
-            "accounts": False,
-            "sessions": False,
-            "gamestate": False
-        }
-    }), 200
+app = create_app()
 
 
 if __name__ == "__main__":
+    from waitress import serve
+
     print("======================================")
     print("      MINIONS PARADISE BRAZIL")
     print("======================================")
-    print("Server version:", SERVER_VERSION)
-    print("Port:", PORT)
+    print("Version:", Config.SERVER_VERSION)
+    print("Port:", Config.PORT)
     print("Starting server...")
 
-    serve(app, host="0.0.0.0", port=PORT, threads=4)
+    serve(
+        app,
+        host=Config.HOST,
+        port=Config.PORT,
+        threads=4
+    )
