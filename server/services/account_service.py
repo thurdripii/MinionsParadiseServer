@@ -8,43 +8,29 @@ class AccountService:
     @staticmethod
     def create_player():
         player_id = generate_player_id()
-        connection = get_connection()
 
-        try:
+        with get_connection() as connection:
             connection.execute(
                 "INSERT INTO players (player_id) VALUES (?)",
                 (player_id,)
             )
-
             connection.commit()
 
-            return {
-                "success": True,
-                "player_id": player_id
-            }
-
-        except Exception:
-            connection.rollback()
-            raise
-
-        finally:
-            connection.close()
+        return {
+            "success": True,
+            "player_id": player_id
+        }
 
     @staticmethod
     def get_player(player_id):
-        connection = get_connection()
-
-        try:
+        with get_connection() as connection:
             player = connection.execute(
-                "SELECT player_id, created_at FROM players "
-                "WHERE player_id = ?",
+                """
+                SELECT player_id, created_at, updated_at
+                FROM players
+                WHERE player_id = ?
+                """,
                 (player_id,)
             ).fetchone()
 
-            if player is None:
-                return None
-
-            return dict(player)
-
-        finally:
-            connection.close()
+            return dict(player) if player else None
