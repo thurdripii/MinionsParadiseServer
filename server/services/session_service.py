@@ -6,7 +6,8 @@ from ..database import get_connection
 from ..security import (
     generate_session_id,
     generate_session_key,
-    hash_session_key
+    hash_session_key,
+    verify_session_key
 )
 
 
@@ -14,25 +15,24 @@ class SessionService:
 
     @staticmethod
     def create_session(player_id):
-        connection = get_connection()
+        if not isinstance(player_id, str) or not player_id:
+            return None
 
-        try:
+        session_id = generate_session_id()
+        session_key = generate_session_key()
+        expires_at = (
+            datetime.now(timezone.utc)
+            + timedelta(hours=Config.SESSION_DURATION_HOURS)
+        ).isoformat()
+
+        with get_connection() as connection:
             player = connection.execute(
                 "SELECT player_id FROM players WHERE player_id = ?",
                 (player_id,)
             ).fetchone()
 
-            if player is None:
+            if not player:
                 return None
-
-            session_id = generate_session_id()
-            session_key = generate_session_key()
-            key_hash = hash_session_key(session_key)
-
-            expires_at = (
-                datetime.now(timezone.utc)
-                + timedelta(hours=Config.SESSION_DURATION_HOURS)
-            ).isoformat()
 
             connection.execute(
                 """
@@ -40,60 +40,60 @@ class SessionService:
                 (session_id, player_id, session_key_hash, expires_at)
                 VALUES (?, ?, ?, ?)
                 """,
-                (session_id, player_id, key_hash, expires_at)
+                (
+                    session_id,
+                    player_id,
+                    hash_session_key(session_key),
+                    expires_at
+                )
             )
-
             connection.commit()
 
-            return {
-                "session_id": session_id,
-                "session_key": session_key,
-                "expires_at": expires_at
-            }
-
-        except Exception:
-            connection.rollback()
-            raise
-
-        finally:
-            connection.close()
+        return {
+            "session_id": session_id,
+            "player_id": player_id,
+            "session_key": session_key,
+            "expires_at": expires_at
+        }
 
     @staticmethod
     def validate_session(player_id, session_key):
-        if not session_key:
+        if not isinstance(player_id, str) or not isinstance(session_key, str):
             return False
 
-        key_hash = hash_session_key(session_key)
-        connection = get_connection()
-
-        try:
-            session = connection.execute(
+        with get_connection() as connection:
+            sessions = connection.execute(
                 """
-                SELECT expires_at FROM sessions
-                WHERE player_id = ? AND session_key_hash = ?
+                SELECT session_key_hash, expires_at
+                FROM sessions
+                WHERE player_id = ?
                 """,
-                (player_id, key_hash)
-            ).fetchone()
+                (player_id,)
+            ).fetchall()
 
-            if session is None:
-                return False
+            now = datetime.now(timezone.utc)
 
-            expiration = datetime.fromisoformat(
-                session["expires_at"]
-            )
+            for session in sessions:
+                try:
+                    expiration = datetime.fromisoformat(
+                        session["expires_at"]
+                    )
 
-            if expiration <= datetime.now(timezone.utc):
-                connection.execute(
-                    """
-                    DELETE FROM sessions
-                    WHERE player_id = ? AND session_key_hash = ?
-                    """,
-                    (player_id, key_hash)
-                )
-                connection.commit()
-                return False
+                    if expiration.tzinfo is None:
+                        expiration = expiration.replace(
+                            tzinfo=timezone.utc
+                        )
 
-            return True
+                    if expiration <= now:
+                        continue
 
-        finally:
-            connection.close()
+                    if verify_session_key(
+                        session_key,
+                        session["session_key_hash"]
+                    ):
+                        return True
+
+                except (ValueError, TypeError):
+                    continue
+
+        return False
