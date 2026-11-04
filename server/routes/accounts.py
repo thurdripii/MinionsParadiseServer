@@ -6,7 +6,7 @@ from ..services.account_service import AccountService
 
 
 @accounts_bp.route("/rest/user/register", methods=["POST"])
-def register_player():
+def register_user():
     try:
         result = AccountService.create_player()
 
@@ -20,28 +20,21 @@ def register_player():
     except Exception:
         return jsonify({
             "success": False,
-            "error": "Registration failed"
+            "error": "registration_failed"
         }), 500
 
 
 @accounts_bp.route("/rest/user/<player_id>", methods=["GET"])
-def get_player(player_id):
-    try:
-        player = AccountService.get_player(player_id)
+def get_user(player_id):
+    player = AccountService.get_player(player_id)
 
-        if player is None:
-            return jsonify({
-                "success": False,
-                "error": "Player not found"
-            }), 404
-
-        return jsonify({
-            "success": True,
-            "player": player
-        }), 200
-
-    except Exception:
+    if not player:
         return jsonify({
             "success": False,
-            "error": "Database error"
-        }), 500
+            "error": "player_not_found"
+        }), 404
+
+    return jsonify({
+        "success": True,
+        "player": player
+    }), 200
