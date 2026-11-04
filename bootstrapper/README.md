@@ -1,21 +1,36 @@
+
 # Minions Paradise Bootstrapper
 
-Componente experimental para verificar a comunicacao
-entre o cliente e o MinionsParadiseServer.
+Aplicativo Android independente para auxiliar na inicialização e comunicação com o servidor Minions Paradise.
 
-## Objetivos
+## Tecnologias
 
-- Verificar se o servidor esta online.
-- Consultar o endpoint /health.
-- Consultar o endpoint /config.
-- Exibir erros de conexao.
+- Kotlin
+- Android SDK
+- Gradle
+- HttpURLConnection
 
-## Compatibilidade planejada
+## Funcionalidades atuais
 
-Unity 5.3.5p4
-C# / Mono
+- Interface inicial.
+- Endereço de servidor configurável.
+- Verificação do endpoint `/health`.
+- Consulta das configurações pelo endpoint `/config`.
+- Execução das requisições em segundo plano.
+
+## Requisitos
+
+- Android 6.0 ou superior.
+- Conexão com o servidor.
+
+## Desenvolvimento
+
+O Bootstrapper ainda está em desenvolvimento.
+
+Esta versão é um aplicativo independente e ainda não está integrado ao APK original do Minions Paradise.
 
 ## Status
 
-Em desenvolvimento.
-Ainda nao integrado ao APK original.
+Versão: 0.1.0
+
+Estado: Experimental.
