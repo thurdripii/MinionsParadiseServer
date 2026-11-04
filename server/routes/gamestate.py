@@ -2,96 +2,64 @@
 from flask import jsonify, request
 
 from . import gamestate_bp
-from ..services.gamestate_service import GameStateService
 from ..services.session_service import SessionService
+from ..services.gamestate_service import GameStateService
 
 
-def authenticate_request():
-    player_id = request.headers.get("User-Id")
+def authenticate(player_id):
+    user_id = request.headers.get("User-Id")
     session_key = request.headers.get("Session-Key")
 
-    if not player_id or not session_key:
-        return None
+    if user_id != player_id or not session_key:
+        return False
 
-    if not SessionService.validate_session(player_id, session_key):
-        return None
-
-    return player_id
+    return SessionService.validate_session(user_id, session_key)
 
 
 @gamestate_bp.route("/rest/gamestate/<player_id>", methods=["GET"])
 def get_gamestate(player_id):
-    authenticated_id = authenticate_request()
-
-    if authenticated_id != player_id:
+    if not authenticate(player_id):
         return jsonify({
             "success": False,
-            "error": "Unauthorized"
+            "error": "unauthorized"
         }), 401
 
-    try:
-        result = GameStateService.get_state(player_id)
+    result = GameStateService.get_state(player_id)
 
-        if result is None:
-            return jsonify({
-                "success": False,
-                "error": "GameState not found"
-            }), 404
-
-        return jsonify({
-            "success": True,
-            "playerId": player_id,
-            "gameState": result["state"],
-            "updatedAt": result["updated_at"]
-        }), 200
-
-    except Exception:
+    if result is None:
         return jsonify({
             "success": False,
-            "error": "GameState retrieval failed"
-        }), 500
+            "error": "gamestate_not_found"
+        }), 404
+
+    return jsonify({
+        "success": True,
+        "data": result
+    }), 200
 
 
 @gamestate_bp.route("/rest/gamestate/<player_id>", methods=["POST"])
 def save_gamestate(player_id):
-    authenticated_id = authenticate_request()
-
-    if authenticated_id != player_id:
+    if not authenticate(player_id):
         return jsonify({
             "success": False,
-            "error": "Unauthorized"
+            "error": "unauthorized"
         }), 401
 
-    data = request.get_json(silent=True)
+    payload = request.get_json(silent=True)
 
-    if not isinstance(data, dict):
+    if not isinstance(payload, dict):
         return jsonify({
             "success": False,
-            "error": "Invalid JSON object"
+            "error": "invalid_json"
         }), 400
 
-    try:
-        saved = GameStateService.save_state(player_id, data)
+    state = payload.get("data", payload)
 
-        if not saved:
-            return jsonify({
-                "success": False,
-                "error": "Player not found"
-            }), 404
+    result = GameStateService.save_state(player_id, state)
 
-        return jsonify({
-            "success": True,
-            "message": "GameState saved"
-        }), 200
+    if not result["success"]:
+        status = 404 if result["error"] == "player_not_found" else 400
+        return jsonify(result), status
 
-    except ValueError as error:
-        return jsonify({
-            "success": False,
-            "error": str(error)
-        }), 400
-
-    except Exception:
-        return jsonify({
-            "success": False,
-            "error": "GameState save failed"
-        }), 500
+    return jsonify(result), 200
